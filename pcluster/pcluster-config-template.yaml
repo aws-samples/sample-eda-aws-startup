@@ -1,0 +1,148 @@
+# ParallelCluster Configuration — Day 1 (v3.0)
+#
+# x8aedz.24xlarge × 2, single queue, LoginNodes Count=1
+#
+# setup.sh substitutes placeholders and activates/strips
+# #OPENZFS_BEGIN/#OPENZFS_END and #ONTAP_BEGIN/#ONTAP_END blocks based on config flags.
+#
+# Placeholders use stack-prefix-neutral keys (${BASE.*}, ${STORAGE.*}).
+# setup.sh reads actual values from the stack names derived from STACK_PREFIX.
+#
+# SSH KeyPair private key:
+#   aws ssm get-parameter --name /ec2/keypair/<KeyPairId> --with-decryption
+
+Region: ${REGION}
+
+Image:
+  Os: rhel8
+
+HeadNode:
+  InstanceType: m7i.2xlarge
+  Ssh:
+    KeyName: ${BASE.KeyPairName}
+    AllowedIps: ${SSH_ALLOWED_CIDR}
+  Networking:
+    SubnetId: ${BASE.PrimarySubnetId}
+    AdditionalSecurityGroups:
+      - ${BASE.SgHeadNodesId}
+  #SSM_BEGIN
+  #Iam:
+  #  AdditionalIamPolicies:
+  #    - Policy: arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+  #SSM_END
+  LocalStorage:
+    RootVolume:
+      VolumeType: gp3
+      Size: 500
+      Iops: 6000
+      Throughput: 250
+
+#LOGINNODES_BEGIN
+# ParallelCluster 3.15 removed LoginNodes.Pools[].Ssh.KeyName.
+# The default user's shared /home keeps the Head Node authorized_keys available
+# on login nodes, so the Head Node private key remains valid for ec2-user.
+LoginNodes:
+  Pools:
+    - Name: users
+      Count: 1
+      InstanceType: ${LOGIN_NODE_INSTANCE_TYPE}
+      Ssh:
+        AllowedIps: ${SSH_ALLOWED_CIDR}
+      Networking:
+        SubnetIds:
+          - ${BASE.PrimarySubnetId}
+        AdditionalSecurityGroups:
+          - ${BASE.SgLoginNodesId}
+#DCV_BEGIN
+      Dcv:
+        Enabled: true
+        AllowedIps: ${DCV_ALLOWED_IPS}
+#DCV_END
+#LOGINNODES_END
+
+SharedStorage:
+  #OPENZFS_BEGIN
+  - Name: fsxz-tools
+    StorageType: FsxOpenZfs
+    MountDir: /fsxz/tools
+    FsxOpenZfsSettings:
+      VolumeId: ${STORAGE.VolToolsId}
+
+  - Name: fsxz-work
+    StorageType: FsxOpenZfs
+    MountDir: /fsxz/work
+    FsxOpenZfsSettings:
+      VolumeId: ${STORAGE.VolWorkId}
+
+  - Name: fsxz-scratch
+    StorageType: FsxOpenZfs
+    MountDir: /fsxz/scratch
+    FsxOpenZfsSettings:
+      VolumeId: ${STORAGE.VolScratchId}
+  #OPENZFS_END
+  #ONTAP_BEGIN
+  - Name: fsxn-tools
+    StorageType: FsxOntap
+    MountDir: /fsxn/tools
+    FsxOntapSettings:
+      VolumeId: ${STORAGE.OntapVolToolsId}
+
+  - Name: fsxn-work
+    StorageType: FsxOntap
+    MountDir: /fsxn/work
+    FsxOntapSettings:
+      VolumeId: ${STORAGE.OntapVolWorkId}
+
+  - Name: fsxn-scratch
+    StorageType: FsxOntap
+    MountDir: /fsxn/scratch
+    FsxOntapSettings:
+      VolumeId: ${STORAGE.OntapVolScratchId}
+  #ONTAP_END
+
+Monitoring:
+  Logs:
+    CloudWatch:
+      Enabled: true
+      RetentionInDays: 90
+      DeletionPolicy: Retain
+  Dashboards:
+    CloudWatch:
+      Enabled: true
+
+Scheduling:
+  Scheduler: slurm
+  SlurmSettings:
+    ScaledownIdletime: 15
+    EnableMemoryBasedScheduling: true
+    QueueUpdateStrategy: TERMINATE
+    # Required for internet-less subnets — Route 53 has no VPC endpoint,
+    # so ParallelCluster's managed DNS is disabled and EC2 hostnames are used instead
+    Dns:
+      DisableManagedDns: true
+      UseEc2Hostnames: true
+
+  SlurmQueues:
+    - Name: eda-x8aedz
+      CapacityType: ONDEMAND
+      JobExclusiveAllocation: false
+      Networking:
+        SubnetIds:
+          - ${BASE.PrimarySubnetId}
+        AdditionalSecurityGroups:
+          - ${BASE.SgComputeNodesId}
+      ComputeSettings:
+        LocalStorage:
+          RootVolume:
+            VolumeType: gp3
+            Size: 200
+            Iops: 3000
+            Throughput: 125
+          EphemeralVolume:
+            MountDir: /local_scratch
+      ComputeResources:
+        - Name: x8aedz24
+          InstanceType: x8aedz.24xlarge
+          MinCount: 0
+          MaxCount: 2
+          DisableSimultaneousMultithreading: false

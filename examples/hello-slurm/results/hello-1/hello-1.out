@@ -1,0 +1,29 @@
+# 과거 smoke test의 식별자를 익명화한 예시입니다. 현재 기본 구성의 검증 결과가 아닙니다.
+=== Hello from Slurm ===
+Host:         compute-example
+Date:         Fri May  8 09:32:56 UTC 2026
+JobID:        1
+Partition:    eda-x8aedz
+Nodes:        eda-x8aedz-dy-x8aedz24-1
+CPUs/task:    2
+Working dir:  /fsxz/work/jobs/example-user/hello-example
+FSx mounts:
+Filesystem                                                               Size  Used Avail Use% Mounted on
+fs-example.fsx.ap-northeast-2.amazonaws.com:/fsx/fsxz_scratch  128G     0  128G   0% /fsxz/scratch
+fs-example.fsx.ap-northeast-2.amazonaws.com:/fsx/fsxz_tools     64G     0   64G   0% /fsxz/tools
+fs-example.fsx.ap-northeast-2.amazonaws.com:/fsx/fsxz_work     128G     0  128G   0% /fsxz/work
+
+=== CPU info ===
+CPU(s):              128
+Thread(s) per core:  2
+Core(s) per socket:  64
+Socket(s):           1
+Model name:          Intel(R) Xeon(R) 6975P-C
+NUMA node0 CPU(s):   0-31,64-95
+
+=== Simple parallel work (calculate pi via bash) ===
+pi  ≈ 3.1415925536
+err = 1.00e-07
+elapsed 2.53s
+
+=== Done ===
